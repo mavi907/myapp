@@ -1,43 +1,70 @@
-dart
-import 'package:flutter/material.dart';
-import '../models/planeta.dart';
-import '../utils/rotas.dart';
+import 'package:path/path.dart';
+import 'package:sqflite/sqflite.dart';
 
-class ControlePlaneta with ChangeNotifier {
-  final List<Planeta> _itens = [];
+import '../modelos/planeta.dart';
 
-  List<Planeta> get itens => [..._itens];
+class ControlePlaneta {
+  static Database? _bd;
 
-  int get itensCount {
-    return _itens.length;
+  Future<Database> get bd async {
+    if (_bd != null) return _bd!;
+    _bd = await _initBD('planetas.db');
+    return _bd!;
   }
 
-  void addPlaneta(Planeta planeta) {
-    _itens.add(planeta);
-    notifyListeners();
+  Future<Database> _initBD(String localArquivo) async {
+    final caminhoBD = await getDatabasesPath();
+    final caminho = join(caminhoBD, localArquivo);
+    return await openDatabase(
+      caminho,
+      version: 1,
+      onCreate: _criarBD,
+    );
   }
 
-  Planeta itemByIndex(int index) {
-    return _itens.elementAt(index);
+  Future<void> _criarBD(Database bd, int versao) async {
+    const sql = '''
+		CREATE TABLE planetas (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			nome TEXT NOT NULL,
+			tamanho REAL NOT NULL,
+			distancia REAL NOT NULL,
+			apelido TEXT
+    );
+    ''';
+    await bd.execute(sql);
   }
 
-  void atualizarPlaneta(Planeta planeta, int index) {
-    _itens[index] = planeta;
-    notifyListeners();
+  Future<List<Planeta>> lerPlanetas() async {
+    final db = await bd;
+    final resultado = await db.query('planetas');
+    return resultado.map((item) => Planeta.fromMap(item)).toList();
   }
 
-  void removerPlaneta(int index) {
-    _itens.removeAt(index);
-    notifyListeners();
+  Future<int> inserirPlaneta(Planeta planeta) async {
+    final db = await bd;
+    return await db.insert(
+      'planetas',
+      planeta.toMap(),
+    );
   }
 
-  Future<void> abrirCadastroPlaneta(BuildContext context,
-      {Planeta? planeta, int? index}) async {
-    await Navigator.of(context)
-        .pushNamed(AppRotas.cadastroPlaneta, arguments: {
-      'planeta': planeta,
-      'index': index,
-    });
+  Future<int> alterarPlaneta(Planeta planeta) async {
+    final db = await bd;
+    return db.update(
+      'planetas',
+      planeta.toMap(),
+      where: 'id = ?',
+      whereArgs: [planeta.id],
+    );
+  }
+
+  Future<int> excluirPlaneta(int id) async {
+    final db = await bd;
+    return await db.delete(
+      'planetas',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
   }
 }
-
